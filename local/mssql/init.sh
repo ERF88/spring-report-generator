@@ -1,0 +1,1 @@
+sleep 30 && /opt/mssql-tools/bin/sqlcmd -S sqlserver -U sa -P P@ssword -d master -i /tmp/init.sql
