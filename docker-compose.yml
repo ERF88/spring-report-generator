@@ -1,0 +1,88 @@
+services:
+  mysql:
+    container_name: mysql
+    image: mysql:latest
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      TZ: "America/Sao_Paulo"
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./local/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - report-generator-network
+    restart: always
+
+  sqlserver:
+    container_name: sqlserver
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      SA_PASSWORD: "P@ssword"
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1433:1433"
+    networks:
+      - report-generator-network
+
+  mssqltools:
+    container_name: mssqltools
+    image: mcr.microsoft.com/mssql-tools
+    depends_on:
+      - sqlserver
+    volumes:
+      - ./local/mssql/init.sh:/tmp/init.sh
+      - ./local/mssql/init.sql:/tmp/init.sql
+    command: /bin/bash ./tmp/init.sh
+    networks:
+      - report-generator-network
+
+  adminer:
+    container_name: adminer
+    image: adminer:latest
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+    ports:
+      - "8081:8080"
+    networks:
+      - report-generator-network
+
+  localstack:
+    container_name: localstack
+    image: localstack/localstack
+    ports:
+      - 4566:4566
+    environment:
+      - AWS_ACCESS_KEY_ID=localstack
+      - AWS_SECRET_ACCESS_KEY=localstack
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_DEFAULT_OUTPUT=json
+      - PERSISTENCE=1
+      - SERVICES=s3
+      - DEBUG=1
+    volumes:
+#      - ./local/localstack/init-s3.sh:/etc/localstack/init/ready.d/init-buckets.sh
+      - ./local/localstack:/etc/localstack/init/ready.d
+      - ./local/localstack/data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - report-generator-network
+
+  s3manager:
+    container_name: s3manager
+    image: cloudlena/s3manager
+    ports:
+      - 8082:8080
+    environment:
+      - ENDPOINT=localstack:4566
+      - ACCESS_KEY_ID=localstack
+      - SECRET_ACCESS_KEY=localstack
+      - USE_SSL=false
+    depends_on:
+      - localstack
+    networks:
+      - report-generator-network
+
+networks:
+  report-generator-network:
+    driver: bridge
